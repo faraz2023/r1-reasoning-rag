@@ -2,7 +2,7 @@ from langchain_core.prompts import PromptTemplate
 
 class Prompts:
     VALIDATE_RETRIEVAL = PromptTemplate(
-        input_variables=["retrieved_context", "question"],
+        input_variables=["retrieved_context", "question", "curr_round", "max_rounds"],
         template="""
         You are a retrieval validator.
         You will be provided with a question and chunks of text that may or may not contain the answer to the question.
@@ -33,6 +33,10 @@ class Prompts:
         Context: {retrieved_context}
         
         The Question: {question}
+
+        IMPORTANT: you are on round {curr_round} of {max_rounds} we must not go the {max_rounds} rounds. So if you are on round {max_rounds} you MUST return "COMPLETE"
+    
+        
         Response:
         """
     )

@@ -16,11 +16,15 @@ class GraphState(TypedDict):
     missing_information: str
     reasoning: str
     useful_information: str
+    curr_round: int
+    max_rounds: int
 
 class QAAgent:
-    def __init__(self):
+    def __init__(self, max_rounds: int = 3):
         self.tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
         self.workflow = self.create_workflow()
+        self.MAX_ROUNDS = max_rounds
+
 
     def retrieve(self, state: GraphState):
         print("\n=== STEP 1: RETRIEVAL ===")
@@ -36,7 +40,12 @@ class QAAgent:
         retrieved_context = state["retrieved_context"]
         print("Retrieved Context: \n", retrieved_context)
         validation_chain = Prompts.VALIDATE_RETRIEVAL | r1
-        llm_output = validation_chain.invoke({"retrieved_context": retrieved_context, "question": question}).content
+        llm_output = validation_chain.invoke({
+            "retrieved_context": retrieved_context, 
+            "question": question,
+            "curr_round": state["curr_round"],
+            "max_rounds": self.MAX_ROUNDS
+        }).content
         
         reasoning = llm_output.split("<think>")[1].split("</think>")[0].strip()
         response = llm_output.split("</think>")[1].strip()
@@ -50,10 +59,16 @@ class QAAgent:
         print("missing information:", missing_information)
         print("useful information:", useful_information)
 
+
         if router_decision == "INCOMPLETE":
             print("Missing Information:", missing_information)
+            # Increment round count as we are about to perform a retry
+            curr_round += 1
 
-        return {"router_decision": router_decision, "retrieved_context": retrieved_context, "useful_information": useful_information, "missing_information": missing_information, "reasoning": reasoning}
+
+        return {"router_decision": router_decision, "retrieved_context": retrieved_context,
+                "useful_information": useful_information, "missing_information": missing_information, 
+                "reasoning": reasoning, "curr_round": state["curr_round"]}
 
     def answer(self, state: GraphState):
         print("\n=== STEP 3: ANSWERING ===")
@@ -109,9 +124,11 @@ class QAAgent:
         return compiled_graph
 
     def run(self, question: str):
-        result = self.workflow.invoke({"question": question})
+        # Initialize with default round values (you can customize max_rounds as needed)
+        initial_state = {"question": question, "curr_round": 1, "max_rounds": self.MAX_ROUNDS}
+        result = self.workflow.invoke(initial_state)
         return result["answer_to_question"]
-
+    
 if __name__ == "__main__":
     agent = QAAgent()
     agent.run("Who is George Washington?")
